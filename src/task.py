@@ -8,7 +8,7 @@ from google.cloud.storage import Client
 from task_base import Task
 from task_base.data_transfer import DataTransferMixin
 
-from report_data import habitat_area_trends
+from report_data import copy_geojson_files_to_cache, habitat_area_trends, landscape_area_trends
 
 # 1. fetch geojson files based on taskdate
 # 2. generate report data
@@ -16,8 +16,8 @@ from report_data import habitat_area_trends
 
 
 class SCLReportData(Task, DataTransferMixin):
-    BUCKET = "cache.speciescl.org"
     SOURCE_DATA_BUCKET = "scl-pipeline"
+    CACHE_BUCKET = "cache.speciescl.org"
     LANDSCAPE_STATS_BUCKET_PATH = "ls_stats/Panthera_tigris/canonical"
     DATA_FILE_NAMES = [
         "scl_restoration.geojson",
@@ -92,17 +92,26 @@ class SCLReportData(Task, DataTransferMixin):
         habitat_area_trends_data = habitat_area_trends(
             geojson_file_paths["scl_states.geojson"]
         )
+
+        landscape_area_trends_data = landscape_area_trends(
+            Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+        )
+
         return {
-            "habitat_area_trends": habitat_area_trends_data
+            "habitat_area_trends": habitat_area_trends_data,
+            "landscape_area_trends": landscape_area_trends_data,
         }
 
     def write_report_data_to_postgres(self, data):
         self._insert_database("habitat_area_trends", data["habitat_area_trends"])
+        self._insert_database("landscape_area_trends", data["landscape_area_trends"])
 
     def calc(self):
         geojson_files = self.fetch_geojson_files()
         data = self.create_report_data(geojson_files)
         self.write_report_data_to_postgres(data)
+
+        copy_geojson_files_to_cache(self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate)
 
 
 if __name__ == "__main__":
