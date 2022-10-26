@@ -8,7 +8,10 @@ from google.cloud.storage import Client
 from task_base import Task
 from task_base.data_transfer import DataTransferMixin
 
-from report_data import copy_geojson_files_to_cache, habitat_area_trends, landscape_area_trends
+from report_data import (copy_geojson_files_to_cache, habitat_area_trends, map_chart,
+                         landscape_area_trends, landscapes,
+                         species_landscape_by_admin,
+                         species_landscape_by_biome)
 
 # 1. fetch geojson files based on taskdate
 # 2. generate report data
@@ -41,6 +44,7 @@ class SCLReportData(Task, DataTransferMixin):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_creds_path
         self.gcsclient = Client()
         self.geojson_files_dir = kwargs.get("geojson_files_dir")
+        self.stdout = kwargs.get("stdout")
 
     def _insert_database(self, report, data):
         conn_string = (
@@ -51,28 +55,35 @@ class SCLReportData(Task, DataTransferMixin):
             f"port={os.environ['DB_PORT']} "
         )
 
-        sql_params = {
-            "task_date": self.taskdate,
-            "report": report,
-            "data": json.dumps(data)}
+        sql = []
+        for iso, country_data in data.items():
+            task_date = self.taskdate
+            country_data = json.dumps(country_data)
+
+            sql.append(
+                f"""
+                INSERT INTO {os.environ["DB_REPORT_TABLE"]} ("task_date", "report", "country_iso", "data", "updated_on")
+                    VALUES('{task_date}', '{report}', '{iso}' ,'{country_data}', now())
+                    ON CONFLICT (task_date, report, country_iso) 
+                    DO 
+                    UPDATE SET data = '{country_data}', updated_on=now();
+            """
+            )
 
         with psycopg2.connect(conn_string) as conn:
             cursor = conn.cursor()
-            sql = f"""
-            INSERT INTO {os.environ["DB_REPORT_TABLE"]} ("task_date", "report", "data", "updated_on")
-                VALUES(%(task_date)s, %(report)s, %(data)s, now())
-                ON CONFLICT (task_date, report) 
-                DO 
-                UPDATE SET data = %(data)s, updated_on=now();
-            """
-            cursor.execute(sql, sql_params)
+            cursor.execute("\n".join(sql))
 
     def check_inputs(self):
         super().check_inputs()
 
     def fetch_geojson_files(self):
         if self.geojson_files_dir:
-            return {path.name: path.resolve() for path in Path(self.geojson_files_dir).rglob("*.geojson") if path.name in self.DATA_FILE_NAMES}
+            return {
+                path.name: path.resolve()
+                for path in Path(self.geojson_files_dir).rglob("*.geojson")
+                if path.name in self.DATA_FILE_NAMES
+            }
 
         blob_path = f"{self.LANDSCAPE_STATS_BUCKET_PATH}/{self.taskdate}"
         local_path = f"/tmp/{self.taskdate}"
@@ -89,29 +100,76 @@ class SCLReportData(Task, DataTransferMixin):
         return data_file_paths
 
     def create_report_data(self, geojson_file_paths):
-        habitat_area_trends_data = habitat_area_trends(
-            geojson_file_paths["scl_states.geojson"]
-        )
+        from timer import Timer
 
-        landscape_area_trends_data = landscape_area_trends(
-            Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
-        )
+        with Timer("habitat_area_trends_data"):
+            habitat_area_trends_data = habitat_area_trends.generate(
+                self.taskdate, geojson_file_paths["scl_states.geojson"]
+            )
+
+        with Timer("landscape_area_trends_data"):
+            landscape_area_trends_data = landscape_area_trends.generate(
+                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+            )
+
+        with Timer("landscapes_data"):
+            landscapes_data = landscapes.generate(
+                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+            )
+
+        with Timer("species_landscape_by_admin_data"):
+            species_landscape_by_admin_data = species_landscape_by_admin.generate(
+                self.taskdate, geojson_file_paths["scl_species.geojson"]
+            )
+
+        with Timer("species_landscape_by_biome_data"):
+            species_landscape_by_biome_data = species_landscape_by_biome.generate(
+                self.taskdate, geojson_file_paths["scl_species.geojson"]
+            )
+        
+        with Timer("map_chart"):
+            map_chart_data = map_chart.generate(
+                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+            )
 
         return {
             "habitat_area_trends": habitat_area_trends_data,
             "landscape_area_trends": landscape_area_trends_data,
+            "landscapes": landscapes_data,
+            "species_landscape_by_admin": species_landscape_by_admin_data,
+            "species_landscape_by_biome": species_landscape_by_biome_data,
+            "map_chart": map_chart_data,
         }
 
     def write_report_data_to_postgres(self, data):
         self._insert_database("habitat_area_trends", data["habitat_area_trends"])
         self._insert_database("landscape_area_trends", data["landscape_area_trends"])
+        self._insert_database("landscapes", data["landscapes"])
+        self._insert_database(
+            "species_landscape_by_admin", data["species_landscape_by_admin"]
+        )
+        self._insert_database(
+            "species_landscape_by_biome", data["species_landscape_by_biome"]
+        )
+        self._insert_database(
+            "map_chart", data["map_chart"]
+        )
+
+    def print_report_data(self, data):
+        print(json.dumps(data, indent=2))
 
     def calc(self):
         geojson_files = self.fetch_geojson_files()
         data = self.create_report_data(geojson_files)
-        self.write_report_data_to_postgres(data)
 
-        copy_geojson_files_to_cache(self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate)
+        if self.stdout:
+            self.print_report_data(data)
+        else:
+            self.write_report_data_to_postgres(data)
+
+        copy_geojson_files_to_cache(
+            self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate
+        )
 
 
 if __name__ == "__main__":
@@ -120,6 +178,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--geojson_files_dir",
         help="Define alternative source of where geojson files are located.",
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Print result to standard output.",
     )
     options = parser.parse_args()
     report_data_cache_task = SCLReportData(**vars(options))
