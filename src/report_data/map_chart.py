@@ -11,7 +11,7 @@ def generate(
     column_name = "eff_pot_hab_area"
 
     species_conservation_landscape_occupieds = sum_by_col(
-        Path(data_dir_path, "scl_species.geojson"), "occupied_eff_pot_hab_area"
+        Path(data_dir_path, "scl_species.geojson"), column_name
     )
     species_fragments = sum_by_col(
         Path(data_dir_path, "scl_species_fragment.geojson"), column_name

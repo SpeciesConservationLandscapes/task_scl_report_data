@@ -48,10 +48,6 @@ def copy_geojson_files_to_cache(
     )
 
 
-def upload_shapefiles(gcloud_storage_client: Client, bucket, taskdate: str, shapefiles: List[Union[str, Path]]) -> bool: 
-    ...
-
-
 def sum_by_col(data_file_path: Union[Path, str], column_name: str) -> float:
     if Path(data_file_path).exists() is False:
         raise ValueError(f"Missing file [{data_file_path}]")
