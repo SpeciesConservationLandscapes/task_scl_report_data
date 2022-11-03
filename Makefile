@@ -4,14 +4,16 @@ IMAGE=scl3/task_scl_report_data
 build:
 	docker build --no-cache -t $(IMAGE) .
 
-run:
-	# docker run --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --taskdate="2020-01-01" --stdout
-	# docker run --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --geojson_files_dir=/tmp --taskdate="2020-01-01" --stdout
-	docker run --network tcl_default  --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --taskdate="2020-01-01"
-	# docker run --network tcl_default --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --geojson_files_dir=/tmp --taskdate="2020-01-01"
+
+push:
+	docker image push $(IMAGE)
+
+test_run:
+	docker run  --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --geojson_files_dir="/tmp/2020-01-01" --taskdate="2020-01-01"
+	# docker run --network tcl_default  --rm -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app $(IMAGE) python task.py --geojson_files_dir=/tmp/2020-01-01 --taskdate="2020-01-01"
 
 shell:
-	docker run -it --env-file .env -v `pwd`/src:/app -v `pwd`/.git:/app/.git $(IMAGE) bash
+	docker run -it --env-file .env -v `pwd`/data:/tmp -v `pwd`/src:/app -v `pwd`/.git:/app/.git $(IMAGE) bash
 
 cleanup:
 	isort `pwd`/src/*.py

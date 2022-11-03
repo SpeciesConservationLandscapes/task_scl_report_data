@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import geopandas as gpd
-import pandas as pd
 from google.cloud.storage import Client
 
 
@@ -47,6 +46,10 @@ def copy_geojson_files_to_cache(
         if is_successful
         else False
     )
+
+
+def upload_shapefiles(gcloud_storage_client: Client, bucket, taskdate: str, shapefiles: List[Union[str, Path]]) -> bool: 
+    ...
 
 
 def sum_by_col(data_file_path: Union[Path, str], column_name: str) -> float:

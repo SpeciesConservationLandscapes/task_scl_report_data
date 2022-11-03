@@ -10,6 +10,7 @@ from task_base.data_transfer import DataTransferMixin
 
 from report_data import (copy_geojson_files_to_cache, habitat_area_trends, map_chart,
                          landscape_area_trends, landscapes,
+                         shapefiles,
                          species_landscape_by_admin,
                          species_landscape_by_biome)
 
@@ -102,44 +103,50 @@ class SCLReportData(Task, DataTransferMixin):
     def create_report_data(self, geojson_file_paths):
         from timer import Timer
 
-        with Timer("habitat_area_trends_data"):
-            habitat_area_trends_data = habitat_area_trends.generate(
-                self.taskdate, geojson_file_paths["scl_states.geojson"]
+        with Timer("shapefiles"):
+            shapefiles.generate(
+                self.taskdate,
+                Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
             )
+        return {}
+        # with Timer("habitat_area_trends_data"):
+        #     habitat_area_trends_data = habitat_area_trends.generate(
+        #         self.taskdate, geojson_file_paths["scl_states.geojson"]
+        #     )
 
-        with Timer("landscape_area_trends_data"):
-            landscape_area_trends_data = landscape_area_trends.generate(
-                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
-            )
+        # with Timer("landscape_area_trends_data"):
+        #     landscape_area_trends_data = landscape_area_trends.generate(
+        #         self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+        #     )
 
-        with Timer("landscapes_data"):
-            landscapes_data = landscapes.generate(
-                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
-            )
+        # with Timer("landscapes_data"):
+        #     landscapes_data = landscapes.generate(
+        #         self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+        #     )
 
-        with Timer("species_landscape_by_admin_data"):
-            species_landscape_by_admin_data = species_landscape_by_admin.generate(
-                self.taskdate, geojson_file_paths["scl_species.geojson"]
-            )
+        # with Timer("species_landscape_by_admin_data"):
+        #     species_landscape_by_admin_data = species_landscape_by_admin.generate(
+        #         self.taskdate, geojson_file_paths["scl_species.geojson"]
+        #     )
 
-        with Timer("species_landscape_by_biome_data"):
-            species_landscape_by_biome_data = species_landscape_by_biome.generate(
-                self.taskdate, geojson_file_paths["scl_species.geojson"]
-            )
+        # with Timer("species_landscape_by_biome_data"):
+        #     species_landscape_by_biome_data = species_landscape_by_biome.generate(
+        #         self.taskdate, geojson_file_paths["scl_species.geojson"]
+        #     )
         
-        with Timer("map_chart"):
-            map_chart_data = map_chart.generate(
-                self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
-            )
+        # with Timer("map_chart"):
+        #     map_chart_data = map_chart.generate(
+        #         self.taskdate, Path(geojson_file_paths[self.DATA_FILE_NAMES[0]]).parent
+        #     )
 
-        return {
-            "habitat_area_trends": habitat_area_trends_data,
-            "landscape_area_trends": landscape_area_trends_data,
-            "landscapes": landscapes_data,
-            "species_landscape_by_admin": species_landscape_by_admin_data,
-            "species_landscape_by_biome": species_landscape_by_biome_data,
-            "map_chart": map_chart_data,
-        }
+        # return {
+        #     "habitat_area_trends": habitat_area_trends_data,
+        #     "landscape_area_trends": landscape_area_trends_data,
+        #     "landscapes": landscapes_data,
+        #     "species_landscape_by_admin": species_landscape_by_admin_data,
+        #     "species_landscape_by_biome": species_landscape_by_biome_data,
+        #     "map_chart": map_chart_data,
+        # }
 
     def write_report_data_to_postgres(self, data):
         self._insert_database("habitat_area_trends", data["habitat_area_trends"])
@@ -162,14 +169,14 @@ class SCLReportData(Task, DataTransferMixin):
         geojson_files = self.fetch_geojson_files()
         data = self.create_report_data(geojson_files)
 
-        if self.stdout:
-            self.print_report_data(data)
-        else:
-            self.write_report_data_to_postgres(data)
+        # if self.stdout:
+        #     self.print_report_data(data)
+        # else:
+        #     self.write_report_data_to_postgres(data)
 
-        copy_geojson_files_to_cache(
-            self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate
-        )
+        # copy_geojson_files_to_cache(
+        #     self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate
+        # )
 
 
 if __name__ == "__main__":
