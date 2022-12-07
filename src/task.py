@@ -13,11 +13,11 @@ from task_base.data_transfer import DataTransferMixin
 
 from report_data import (
     copy_geojson_files_to_cache,
+    geofiles,
     habitat_area_trends,
     map_chart,
     landscape_area_trends,
     landscapes,
-    shapefiles,
     species_landscape_by_admin,
     species_landscape_by_biome,
 )
@@ -182,11 +182,11 @@ class SCLReportData(Task, DataTransferMixin):
     def print_report_data(self, data):
         print(json.dumps(data, indent=2))
 
-    def _upload_zipped_shapefiles(self, zipped_shapefile_paths):
+    def _upload_zipped_geofiles(self, zipped_shapefile_paths):
         for zipped_shapefile_path in zipped_shapefile_paths:
             zip_path = Path(zipped_shapefile_path)
             file_name = zip_path.stem
-            blob_path = f"shapefiles/{self.taskdate}/{file_name}.zip"
+            blob_path = f"geofiles/{self.taskdate}/{file_name}.zip"
             self.upload_to_cloudstorage(
                 zipped_shapefile_path, blob_path, self.CACHE_BUCKET
             )
@@ -203,10 +203,10 @@ class SCLReportData(Task, DataTransferMixin):
         copy_geojson_files_to_cache(
             self.gcsclient, self.SOURCE_DATA_BUCKET, self.CACHE_BUCKET, self.taskdate
         )
-        zipped_shapefile_paths = shapefiles.generate(
+        zipped_geofile_paths = geofiles.generate(
             self.taskdate, Path(geojson_files[self.DATA_FILE_NAMES[0]]).parent
         )
-        self._upload_zipped_shapefiles(zipped_shapefile_paths)
+        self._upload_zipped_geofiles(zipped_geofile_paths)
 
 
 if __name__ == "__main__":
