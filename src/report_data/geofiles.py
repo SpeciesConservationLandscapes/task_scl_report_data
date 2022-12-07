@@ -249,15 +249,14 @@ def get_shapefile_paths(shapefile):
     return [Path(dir_path, f"{file_name}{ext}") for ext in extensions]
 
 
-def zip_geofiles(geofiles):
+def zip_geofiles(geofiles, country_iso):
     geofile_path = Path(geofiles[0])
     dir_path = geofile_path.parent
-    file_name = geofile_path.stem
-    zip_path = Path(dir_path, f"{file_name}.zip")
-    with ZipFile(zip_path, "w") as zip:
+    zip_path = Path(dir_path, f"geofiles_{country_iso}.zip")
+    with ZipFile(zip_path, "w") as zp:
         for file_path in geofiles:
             name = Path(file_path).name
-            zip.write(file_path, arcname=name)
+            zp.write(file_path, arcname=name)
 
     return zip_path
 
@@ -283,7 +282,7 @@ def generate_by_country(
 
         geo_file_paths.append(country_geojson_path)
 
-    return zip_geofiles(geo_file_paths)
+    return zip_geofiles(geo_file_paths, country_iso)
 
 
 def generate(
